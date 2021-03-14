@@ -21,21 +21,21 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 #1
-def find_location_crop(event,x,y,flags,param):
-    f = open(resource_path('data/config/location_crop.txt'),'a+')
+def find_location_crop(event, x, y, flags, param):
+    f = open(resource_path('data/config/location_crop.txt'), 'a+')
     if event == cv2.EVENT_LBUTTONDOWN:
-        f.write(str(x)+"\n")
-        f.write(str(y)+"\n")
+        f.write(str(x) + "\n")
+        f.write(str(y) + "\n")
 
 #2
 def crop_image(image):
-    f = open(resource_path('data/config/location_crop.txt'),'r+')
+    f = open(resource_path('data/config/location_crop.txt'), 'r+')
     for i in range(4):
         x1 = int(f.readline())
         y1 = int(f.readline())
         x2 = int(f.readline())
         y2 = int(f.readline())
-        crop = image[y1:y2,x1:x2, :]
+        crop = image[y1:y2, x1:x2, :]
         cv2.imwrite(resource_path('data/img_check_crop/{}.jpg'.format(i)), crop)
     f.close()
 
@@ -46,7 +46,7 @@ def calc_mean(image):
     for i in range(x[0]):
         for j in range(x[1]):
             sum += image[i][j]
-    return sum/(x[0]*x[1])
+    return sum / (x[0]*x[1])
 
 def calc_mean_all():
     a = []
@@ -57,9 +57,9 @@ def calc_mean_all():
     return a
 
 def check(mean):
-    mean_check = [180,200,200,200]
+    mean_check = [180, 200, 200, 200]
     for i in range(4):
-        if mean[i]< mean_check[i]:
+        if mean[i] < mean_check[i]:
             return 0
     return 1
 
