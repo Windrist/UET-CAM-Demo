@@ -77,6 +77,11 @@ class App(QMainWindow):
         self.demo_count = 0
         self.report_one_time = True
 
+        self.count_file = open(resource_path('data/demo/Test/count.txt'), 'r+')
+        self.count_current_ok = int(self.count_file.readline())
+        self.count_current_ng = int(self.count_file.readline())
+        self.count_file.close()
+
         # Run QT
         self.initUI()
     
@@ -412,16 +417,16 @@ class App(QMainWindow):
                 self.count = 0
 
                 # Hiện Video khi chờ
-                # ret, image = self.cap_detect.read()
-                image = cv2.imread(resource_path('data/demo/Detect/origin.jpg'))
+                ret, image = self.cap_detect.read()
+                # image = cv2.imread(resource_path('data/demo/Detect/origin.jpg'))
                 image = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
                 self.update_detect_image(image)
         elif self.command == "Detect":
             if self.get_cap_detect == True:
                 
                 # Lấy dữ liệu từ camera
-                # ret, image = self.cap_detect.read()
-                image = cv2.imread(resource_path('data/demo/Detect/origin.jpg'))
+                ret, image = self.cap_detect.read()
+                # image = cv2.imread(resource_path('data/demo/Detect/origin.jpg'))
                 resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
                 detect = Detect()
 
@@ -441,22 +446,47 @@ class App(QMainWindow):
             
         elif self.command == "Check":
             if self.get_cap_check == True:
-                # ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
-                rand_list = os.listdir(resource_path('data/demo/Check'))
-                file = random.choice(rand_list)
-                image = cv2.imread(resource_path('data/demo/Check/' + file))
-                resize_img = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                resize_img = cv2.resize(resize_img, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
-                image = cv2.resize(image, (800, 800))
-                checkAlign.crop_image(image)
-                mean = checkAlign.calc_mean_all()
+                ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
+                # rand_list = os.listdir(resource_path('data/demo/Check'))
+                # file = random.choice(rand_list)
+                # image = cv2.imread(resource_path('data/demo/Check/' + file))
+                # resize_img = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                # resize_img = cv2.resize(resize_img, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
+                resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
+                image = image[150:280, 245:445]
+                image = cv2.resize(image, (1600, 1040))
+                crop_list = checkAlign.crop_image(image)
+                mean = checkAlign.calc_mean_all(crop_list)
+                print(mean)
                 check = checkAlign.check(mean)
 
                 self.update_check_image(resize_img) # Đưa video lên giao diện
                 if check:
+                    print("OK", end=" ")
+                    self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
+                    os.mkdir(resource_path('data/demo/Test/OK-{}'.format(self.count_current_ok)))
+                    cv2.imwrite('data/demo/Test/OK-{}/image.jpg'.format(self.count_current_ok), image)
+                    f = open(resource_path('data/demo/Test/OK-{}/mean.txt'.format(self.count_current_ok)), 'x')
+                    for i in range(4):
+                        cv2.imwrite('data/demo/Test/OK-{}/'.format(self.count_current_ok) + 'crop_{}.jpg'.format(i+1), crop_list[i])
+                        f.write(str(int(mean[i])) + " ")
+                    self.count_current_ok += 1
+                    self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
+                    self.count_file.close()
                     self.Controller.command = "Grip-1"
                     # self.Controller.sendCommand()
                 else:
+                    print("NG", end=" ")
+                    self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
+                    os.mkdir(resource_path('data/demo/Test/NG-{}'.format(self.count_current_ng)))
+                    cv2.imwrite('data/demo/Test/NG-{}/image.jpg'.format(self.count_current_ng), image)
+                    f = open(resource_path('data/demo/Test/NG-{}/mean.txt'.format(self.count_current_ng)), 'x')
+                    for i in range(4):
+                        cv2.imwrite('data/demo/Test/NG-{}/'.format(self.count_current_ng) + 'crop_{}.jpg'.format(i+1), crop_list[i])
+                        f.write(str(int(mean[i])) + " ")
+                    self.count_current_ng += 1
+                    self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
+                    self.count_file.close()
                     self.Controller.command = "Grip-0"
                     # self.Controller.sendCommand()
                 self.command = "Wait"
@@ -488,9 +518,9 @@ class App(QMainWindow):
                 self.command = "Idle"
 
     def setup_camera(self):
-        # self.cap_detect = cv2.VideoCapture(1) # Khai báo USB Camera Detect Config
+        self.cap_detect = cv2.VideoCapture(1) # Khai báo USB Camera Detect Config
         self.get_cap_detect = True
-        # self.cap_check = cv2.VideoCapture(1) # Khai báo USB Camera Check Config
+        self.cap_check = cv2.VideoCapture(0) # Khai báo USB Camera Check Config
         self.get_cap_check = True
 
     def get_command(self):
@@ -504,9 +534,9 @@ class App(QMainWindow):
                 elif self.Controller.command == "Grip-1":
                     rand_list = ['1', '0', '404', '1', '1']
                     self.command = random.choice(rand_list)
-                elif self.Controller.command == "Grip":       
-                    self.command = "Check"
-                    self.demo_count += 1
+                # elif self.Controller.command == "Grip":       
+                #     self.command = "Check"
+                #     self.demo_count += 1
             elif self.demo_count == self.total:
                 if self.Controller.command == "Grip-0":
                     self.command = "-1"
@@ -520,8 +550,11 @@ class App(QMainWindow):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Return:
             self.command = "Detect"
-        if event.key() == Qt.Key_Escape:
+        elif event.key() == Qt.Key_Escape:
             self.command = "Idle"
+        elif (event.key() == Qt.Key_F12) and (self.Controller.command == "Grip"):
+            self.command = "Check"
+            self.demo_count += 1
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
