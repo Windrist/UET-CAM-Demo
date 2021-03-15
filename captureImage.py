@@ -13,7 +13,7 @@ if __name__ == "__main__":
         if key == ord('q'):
             break
         elif key == ord('s'):
-            cv2.imwrite('data/demo/{}.png'.format(count), image)
+            cv2.imwrite('data/demo/{}.jpg'.format(count), image)
             count+=1
     
     cap.release()

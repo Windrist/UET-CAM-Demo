@@ -15,6 +15,7 @@ import math
 import checkAlign
 from connectPLC import PLC
 from detectYesNo import Detect
+from checkOnJig import CheckOn
 
 
 def resource_path(relative_path):
@@ -453,28 +454,38 @@ class App(QMainWindow):
                 ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
                 resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
                 
-                # Kiểm tra lệch
-                image = cv2.resize(image, (800, 800))
-                checkAlign.crop_image(image)
-                mean = checkAlign.calc_mean_all()
-                check = checkAlign.check(mean)
+                # Kiểm tra Jig
+                CheckOn = CheckOn()
+                CheckOn.image = image[150:280, 245:445]
 
-                self.update_check_image(resize_img) # Đưa video lên giao diện
+                # Nếu không có linh kiện trên Jig
+                if CheckOn.check(CheckOn.calc_mean()) == 0:
+                    self.command = "SOS"
                 
-                # Kết quả trả về linh kiện không lệch
-                if check:
-                    # Đổi State -> Gửi State mới cho PLC
-                    self.Controller.command = "Grip-1"
-                    self.Controller.sendCommand()
-                
-                # Kết quả trả về linh kiện lệch
+                # Nếu có linh kiện trên Jig
                 else:
-                    # Đổi State -> Gửi State mới cho PLC
-                    self.Controller.command = "Grip-0"
-                    self.Controller.sendCommand()
-                
-                # Đổi State: Chờ lệnh
-                self.command = "Wait"
+                    # Kiểm tra lệch
+                    image = cv2.resize(image, (800, 800))
+                    checkAlign.crop_image(image)
+                    mean = checkAlign.calc_mean_all()
+                    check = checkAlign.check(mean)
+
+                    self.update_check_image(resize_img) # Đưa video lên giao diện
+                    
+                    # Kết quả trả về linh kiện không lệch
+                    if check:
+                        # Đổi State -> Gửi State mới cho PLC
+                        self.Controller.command = "Grip-1"
+                        self.Controller.sendCommand()
+                    
+                    # Kết quả trả về linh kiện lệch
+                    else:
+                        # Đổi State -> Gửi State mới cho PLC
+                        self.Controller.command = "Grip-0"
+                        self.Controller.sendCommand()
+                    
+                    # Đổi State: Chờ lệnh
+                    self.command = "Wait"
 
         # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
         elif self.command == "1":

@@ -16,6 +16,7 @@ import math
 import checkAlign
 from connectPLC import PLC
 from detectYesNo import Detect
+from checkOnJig import CheckOn
 
 
 def resource_path(relative_path):
@@ -471,83 +472,96 @@ class App(QMainWindow):
                 folder = random.choice(rand_list)
                 image = cv2.imread(resource_path('data/demo/Test/data/' + folder + '/image.jpg'))
                 resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
-                
-                # Kiểm tra lệch
-                # image = image[150:280, 245:445]
-                image = cv2.resize(image, (1600, 1040))
-                crop_list = checkAlign.crop_image(image)
-                mean = checkAlign.calc_mean_all(crop_list)
-                check = checkAlign.check(mean)
 
                 self.update_check_image(resize_img) # Đưa video lên giao diện
                 
-                # Kết quả trả về linh kiện không lệch
-                if check:
-                    # Auto lưu dữ liệu kiểm thử
-                    # self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
-                    # os.mkdir(resource_path('data/demo/Test/data/OK-{}'.format(self.count_current_ok)))
-                    # cv2.imwrite('data/demo/Test/data/OK-{}/image.jpg'.format(self.count_current_ok), image)
-                    # f = open(resource_path('data/demo/Test/data/OK-{}/mean.txt'.format(self.count_current_ok)), 'x')
-                    # for i in range(4):
-                    #     cv2.imwrite('data/demo/Test/data/OK-{}/'.format(self.count_current_ok) + 'crop_{}.jpg'.format(i+1), crop_list[i])
-                    #     f.write(str(int(mean[i])) + " ")
-                    # self.count_current_ok += 1
-                    # self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
-                    # self.count_file.close()
+                # Kiểm tra Jig
+                CheckOn = CheckOn()
+                CheckOn.image = image[150:280, 245:445]
 
-                    # Đổi State -> Gửi State mới cho PLC
-                    self.Controller.command = "Grip-1"
-                    # self.Controller.sendCommand()
-
-                # Kết quả trả về linh kiện lệch
-                else:
-                    # Auto lưu dữ liệu kiểm thử
-                    # self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
-                    # os.mkdir(resource_path('data/demo/Test/data/NG-{}'.format(self.count_current_ng)))
-                    # cv2.imwrite('data/demo/Test/data/NG-{}/image.jpg'.format(self.count_current_ng), image)
-                    # f = open(resource_path('data/demo/Test/data/NG-{}/mean.txt'.format(self.count_current_ng)), 'x')
-                    # for i in range(4):
-                    #     cv2.imwrite('data/demo/Test/data/NG-{}/'.format(self.count_current_ng) + 'crop_{}.jpg'.format(i+1), crop_list[i])
-                    #     f.write(str(int(mean[i])) + " ")
-                    # self.count_current_ng += 1
-                    # self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
-                    # self.count_file.close()
-
-                    # Đổi State -> Gửi State mới cho PLC
-                    self.Controller.command = "Grip-0"
-                    # self.Controller.sendCommand()
+                # Nếu không có linh kiện trên Jig
+                if CheckOn.check(CheckOn.calc_mean()) == 0:
+                    self.command = "SOS"
                 
-                # Đổi State: Chờ lệnh
+                # Nếu có linh kiện trên Jig
+                else:
+                    # Kiểm tra lệch
+                    check_image = cv2.resize(CheckOn.image, (1600, 1040))
+                    crop_list = checkAlign.crop_image(check_image)
+                    mean = checkAlign.calc_mean_all(crop_list)
+                    check = checkAlign.check(mean)
+                    
+                    # Kết quả trả về linh kiện không lệch
+                    if check:
+                        # Auto lưu dữ liệu kiểm thử
+                        # self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
+                        # os.mkdir(resource_path('data/demo/Test/data/OK-{}'.format(self.count_current_ok)))
+                        # cv2.imwrite('data/demo/Test/data/OK-{}/image.jpg'.format(self.count_current_ok), image)
+                        # f = open(resource_path('data/demo/Test/data/OK-{}/mean.txt'.format(self.count_current_ok)), 'x')
+                        # for i in range(4):
+                        #     cv2.imwrite('data/demo/Test/data/OK-{}/'.format(self.count_current_ok) + 'crop_{}.jpg'.format(i+1), crop_list[i])
+                        #     f.write(str(int(mean[i])) + " ")
+                        # self.count_current_ok += 1
+                        # self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
+                        # self.count_file.close()
+
+                        # Đổi State -> Gửi State mới cho PLC
+                        self.Controller.command = "Grip-1"
+                        # self.Controller.sendCommand()
+
+                    # Kết quả trả về linh kiện lệch
+                    else:
+                        # Auto lưu dữ liệu kiểm thử
+                        # self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
+                        # os.mkdir(resource_path('data/demo/Test/data/NG-{}'.format(self.count_current_ng)))
+                        # cv2.imwrite('data/demo/Test/data/NG-{}/image.jpg'.format(self.count_current_ng), image)
+                        # f = open(resource_path('data/demo/Test/data/NG-{}/mean.txt'.format(self.count_current_ng)), 'x')
+                        # for i in range(4):
+                        #     cv2.imwrite('data/demo/Test/data/NG-{}/'.format(self.count_current_ng) + 'crop_{}.jpg'.format(i+1), crop_list[i])
+                        #     f.write(str(int(mean[i])) + " ")
+                        # self.count_current_ng += 1
+                        # self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
+                        # self.count_file.close()
+
+                        # Đổi State -> Gửi State mới cho PLC
+                        self.Controller.command = "Grip-0"
+                        # self.Controller.sendCommand()
+                    
+                    # Đổi State: Chờ lệnh
+                    self.command = "Wait"
+
+            # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
+            elif self.command == "1":
+                self.update_statistic(self.command)
+                self.Controller.command = "Grip"
+                # self.Controller.sendCommand()
+                self.command = "Wait"
+            elif self.command == "0":
+                self.update_statistic(self.command)
+                self.Controller.command = "Grip"
+                # self.Controller.sendCommand()
+                self.command = "Wait"
+            elif self.command == "-1":
+                self.update_statistic(self.command)
+                self.Controller.command = "Grip"
+                # self.Controller.sendCommand()
+                self.command = "Wait"
+            elif self.command == "404":
+                self.update_statistic(self.command)
+                self.Controller.command = "Grip"
+                # self.Controller.sendCommand()
                 self.command = "Wait"
 
-        # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
-        elif self.command == "1":
-            self.update_statistic(self.command)
-            self.Controller.command = "Grip"
-            # self.Controller.sendCommand()
-            self.command = "Wait"
-        elif self.command == "0":
-            self.update_statistic(self.command)
-            self.Controller.command = "Grip"
-            # self.Controller.sendCommand()
-            self.command = "Wait"
-        elif self.command == "-1":
-            self.update_statistic(self.command)
-            self.Controller.command = "Grip"
-            # self.Controller.sendCommand()
-            self.command = "Wait"
-        elif self.command == "404":
-            self.update_statistic(self.command)
-            self.Controller.command = "Grip"
-            # self.Controller.sendCommand()
-            self.command = "Wait"
+            # Kết thúc -> Xuất ra thông báo
+            elif self.command == "Report":
+                if self.report_one_time:
+                    self.report_one_time = False
+                    QMessageBox.about(self, "Kiểm Tra Hoàn Tất", "Đã Kiểm Tra " + str(self.total) + " linh kiện!\n" + "Còn " + str(self.number_error1) + " linh kiện cần kiểm tra lại!")
+                    self.command = "Idle"
 
-        # Kết thúc -> Xuất ra thông báo
-        elif self.command == "Report":
-            if self.report_one_time:
-                self.report_one_time = False
-                QMessageBox.about(self, "Kiểm Tra Hoàn Tất", "Đã Kiểm Tra " + str(self.total) + " linh kiện!\n" + "Còn " + str(self.number_error1) + " linh kiện cần kiểm tra lại!")
-                self.command = "Idle"
+            # Dừng khẩn cấp
+            elif self.command == "SOS":
+                QMessageBox.about(self, "Dừng Khẩn Cấp", "Không thấy linh kiện trên Jig!")
 
     # Init Camera
     def setup_camera(self):
