@@ -3,7 +3,7 @@ import cv2
 
 if __name__ == "__main__":
     # Camera configuration
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
     count = 0
     
     while True:
@@ -13,7 +13,7 @@ if __name__ == "__main__":
         if key == ord('q'):
             break
         elif key == ord('s'):
-            cv2.imwrite('image/{}.png'.format(count), image)
+            cv2.imwrite('data/demo/{}.png'.format(count), image)
             count+=1
     
     cap.release()
