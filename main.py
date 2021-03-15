@@ -251,7 +251,8 @@ class App(QMainWindow):
         self.camera_thread.start()
         self.main_thread.start()
         self.plc_thread.start()
-    
+
+    # Hàm stream CAMERA DETECT lên giao diện
     def update_detect_image(self, img):
         rgbImage = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         h, w, ch = rgbImage.shape
@@ -259,6 +260,7 @@ class App(QMainWindow):
         convertToQtFormat = QImage(rgbImage.data, w, h, bytesPerLine, QImage.Format_RGB888)
         self.cam1.setPixmap(QPixmap.fromImage(convertToQtFormat))
     
+    # Hàm stream CAMERA CHECK lên giao diện
     def update_check_image(self, img):
         rgbImage = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         h, w, ch = rgbImage.shape
@@ -266,14 +268,19 @@ class App(QMainWindow):
         convertToQtFormat = QImage(rgbImage.data, w, h, bytesPerLine, QImage.Format_RGB888)
         self.cam2.setPixmap(QPixmap.fromImage(convertToQtFormat))
     
+    # Hàm cập nhật bảng số liệu
     def update_statistic(self, data):
         self.number_tested += 1
+
+        # Reset giá trị đếm khi kiểm tra hết linh kiện
         if self.count == 42:
             self.count = 0
         
+        # Bỏ qua khi không có linh kiện trong mảng dữ liệu
         while self.Controller.data[self.count] != 1:
             self.count += 1
-            
+        
+        # Cập nhật số liệu Kiểm tra
         tested = QTableWidgetItem("{}".format(self.number_tested) + " / {}".format(self.total))
         tested.setTextAlignment(Qt.AlignCenter)
         self.statistic_table.setItem(0,1,tested)
@@ -281,9 +288,12 @@ class App(QMainWindow):
         ratio_tested.setTextAlignment(Qt.AlignCenter)
         self.statistic_table.setItem(0,2,ratio_tested)
         
+        # Lấy số liệu linh kiện
         tray_idx = self.count // 21
         row = 6 - self.count % 21 % 7
         col = self.count % 21 // 7
+
+        # Thông báo đẩy
         if data == "1":
             self.number_success += 1
             self.tray[tray_idx].item(row,col).setBackground(QColor(67, 138, 94))
@@ -301,6 +311,7 @@ class App(QMainWindow):
             self.tray[tray_idx].item(row,col).setBackground(QColor(255, 128, 0))
             self.textBox.appendPlainText("Linh Kiện Tray {}".format(tray_idx+1) + " Hàng {}".format(row+1) + " Cột {}".format(col+1) + " Gặp Lỗi Kết Nối Với Bộ Test. Đề Nghị Kiểm Tra!\n")
 
+        # Cập nhật số liệu
         success = QTableWidgetItem("{}".format(self.number_success) + " / {}".format(self.number_tested))
         success.setTextAlignment(Qt.AlignCenter)
         self.statistic_table.setItem(1,1,success)
@@ -329,9 +340,11 @@ class App(QMainWindow):
         ratio_error3.setTextAlignment(Qt.AlignCenter)
         self.statistic_table.setItem(4,2,ratio_error3)
         
+        # Linh kiện kiểm tra xong sẽ xóa khỏi mảng dữ liệu
         self.Controller.data[self.count] = 0
         self.count += 1
     
+    # Hàm Khởi tạo giá trị cho Bảng số liệu
     def init_statistic(self):
         tested = QTableWidgetItem("{}".format(0) + " / {}".format(self.total))
         tested.setTextAlignment(Qt.AlignCenter)
@@ -381,12 +394,13 @@ class App(QMainWindow):
                         self.total += 1
                     c += 1
 
-        # Send Data to PLC
+        # Send Data to PLC -> Send Command to PLC -> Grip
         self.Controller.data = data
         self.Controller.sendData()
         self.Controller.command = "Grip"
         self.Controller.sendCommand()
-        
+
+    # Hàm cập nhật giờ   
     def updateTimer(self):
         cr_time = QTime.currentTime()
         time = cr_time.toString('hh:mm AP')
@@ -394,6 +408,7 @@ class App(QMainWindow):
 
     def main_process(self):
         if self.command == "Idle":
+            # Kiểm tra xem đã nhận Camera Check chưa
             if self.get_cap_detect == True:
 
                 # Reset Main Variables
@@ -410,6 +425,7 @@ class App(QMainWindow):
                 image = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
                 self.update_detect_image(image)
         elif self.command == "Detect":
+            # Kiểm tra xem đã nhận Camera Check chưa
             if self.get_cap_detect == True:
                 
                 # Lấy dữ liệu từ camera
@@ -432,23 +448,35 @@ class App(QMainWindow):
                 self.command = "Wait"
             
         elif self.command == "Check":
+            # Kiểm tra xem đã nhận Camera Check chưa
             if self.get_cap_check == True:
                 ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
                 resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
+                
+                # Kiểm tra lệch
                 image = cv2.resize(image, (800, 800))
                 checkAlign.crop_image(image)
                 mean = checkAlign.calc_mean_all()
                 check = checkAlign.check(mean)
 
                 self.update_check_image(resize_img) # Đưa video lên giao diện
+                
+                # Kết quả trả về linh kiện không lệch
                 if check:
+                    # Đổi State -> Gửi State mới cho PLC
                     self.Controller.command = "Grip-1"
                     self.Controller.sendCommand()
+                
+                # Kết quả trả về linh kiện lệch
                 else:
+                    # Đổi State -> Gửi State mới cho PLC
                     self.Controller.command = "Grip-0"
                     self.Controller.sendCommand()
+                
+                # Đổi State: Chờ lệnh
                 self.command = "Wait"
 
+        # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
         elif self.command == "1":
             self.update_statistic(self.command)
             self.Controller.command = "Grip"
@@ -469,18 +497,22 @@ class App(QMainWindow):
             self.Controller.command = "Grip"
             self.Controller.sendCommand()
             self.command = "Wait"
+        
+        # Kết thúc -> Xuất ra thông báo
         elif self.command == "Report":
             if self.report_one_time:
                 self.report_one_time = False
                 QMessageBox.about(self, "Kiểm Tra Hoàn Tất", "Đã Kiểm Tra " + str(self.total) + " linh kiện!\n" + "Còn " + str(self.number_error1) + " linh kiện cần kiểm tra lại!")
                 self.command = ""
 
+    # Init Camera
     def setup_camera(self):
         self.cap_detect = cv2.VideoCapture(0) # Khai báo USB Camera Detect Config
         self.get_cap_detect = True
         self.cap_check = cv2.VideoCapture(0) # Khai báo USB Camera Check Config
         self.get_cap_check = True
 
+    # Loop Get Command from PLC
     def get_command(self):
         self.command = self.Controller.queryCommand()
 
