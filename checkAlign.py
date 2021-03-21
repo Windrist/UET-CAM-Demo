@@ -23,16 +23,17 @@ def resource_path(relative_path):
 
 #1
 def find_location_crop(event, x, y, flags, param):
-    f = open(resource_path('data/config/location_crop.txt'), 'w')
+    f = open(resource_path('data/config/location_crop.txt'), 'a')
     if event == cv2.EVENT_LBUTTONDOWN:
         f.write(str(x) + "\n")
         f.write(str(y) + "\n")
+    f.close()
 
 #2
 def crop_image(image):
     a = []
-    f = open(resource_path('data/config/location_crop.txt'), 'r')
-    for i in range(7):
+    f = open(resource_path('data/config/location_crop.txt'), 'r+')
+    for i in range(4):
         x1 = int(f.readline())
         y1 = int(f.readline())
         x2 = int(f.readline())
@@ -45,12 +46,7 @@ def crop_image(image):
 
 #3
 def calc_mean(image):
-    x = image.shape
-    sum = 0
-    for i in range(x[0]):
-        for j in range(x[1]):
-            sum += image[i][j]
-    return sum / (x[0]*x[1])
+    return np.mean(image, axis=(0, 1))
 
 def calc_mean_all(image_list):
     a = []
@@ -62,62 +58,42 @@ def calc_mean_all(image_list):
     return a
 
 def check(mean):
-    mean_check = [250, 250, 250, 250]
+    mean_check = [245, 245, 235, 235]
     for i in range(4):
         if mean[i] < mean_check[i]:
             return 0
     return 1
 
-# cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(1)
+# cap.set(3, 1280)
+# cap.set(4, 720)
 
-# # 4
 # while(True):
 #     # Capture frame-by-frame
 #     ret, frame = cap.read()
-#     # Our operations on the frame come here
-#     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-#     # Display the resulting frame
 #     cv2.imshow('frame', frame)
 #     key = cv2.waitKey(1) & 0xFF
 #     if key == ord('q'):
 #         break
 #     if key == ord('s'):
-#         cv2.imwrite('data/Demo/img/preview.jpg', frame)
-#         # image = frame
-#         # image = cv2.resize(image,(800,800))
-#         # crop_image(image)
-#         # mean = calc_mean_all()
-#         # print(check(mean))
-        
-# # When everything done, release the capture
+#         cv2.imwrite('preview.jpg', frame)
+
 # cap.release()
 # cv2.destroyAllWindows()
 
+# image = cv2.imread("preview.jpg")
 
-image = cv2.imread("data/demo/Test/preview.jpg")
-# print(image.shape)
-# image = cv2.resize(image, (800, 800))
-image = image[150:280, 250:450]
-image = cv2.resize(image, (1600, 1040))
+# cv2.namedWindow("image")
+# cv2.setMouseCallback("image", find_location_crop)
+# while True:
+#     cv2.imshow("image", image)
+#     if cv2.waitKey(1) & 0xFF == ord("q"):
+#         break
+# cv2.destroyAllWindows()
 
-
-# 1
-cv2.namedWindow("image")
-cv2.setMouseCallback("image", find_location_crop)
-while True:
-    cv2.imshow("image", image)
-    # plt.show()
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
-cv2.destroyAllWindows()
-
-# # ##2
 # crop_list = crop_image(image)
 
-# # ##3
-# # # #calculator mean
 # mean = calc_mean_all(crop_list)
 # print(mean)
 # print(check(mean))
-

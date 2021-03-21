@@ -422,6 +422,8 @@ class App(QMainWindow):
                 self.count = 0
 
                 # Hiện Video khi chờ
+                self.cap_detect.set(3, 1920)
+                self.cap_detect.set(4, 1080)
                 ret, image = self.cap_detect.read()
                 image = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
                 self.update_detect_image(image)
@@ -430,13 +432,15 @@ class App(QMainWindow):
             if self.get_cap_detect == True:
                 
                 # Lấy dữ liệu từ camera
+                self.cap_detect.set(3, 1920)
+                self.cap_detect.set(4, 1080)
                 ret, image = self.cap_detect.read()
                 resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
                 detect = Detect()
 
                 # Xử lý Ảnh
-                detect.image = cv2.resize(image, (1920, 1080), interpolation=cv2.INTER_AREA)
-                detect.grabCut()
+                detect.image = image
+                detect.thresh()
 
                 # Detect YES/NO
                 result = detect.check(detect.crop_tray_1)
@@ -451,6 +455,8 @@ class App(QMainWindow):
         elif self.command == "Check":
             # Kiểm tra xem đã nhận Camera Check chưa
             if self.get_cap_check == True:
+                self.cap_check.set(3, 1920)
+                self.cap_check.set(4, 1080)
                 ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
                 resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
                 

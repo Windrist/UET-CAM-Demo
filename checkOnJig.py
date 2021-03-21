@@ -20,31 +20,74 @@ class CheckOn(object):
 
         self.image = []
 
-    def calc_mean(self):
-        x = self.image.shape
-        sum = 0
-        for i in range(x[0]):
-            for j in range(x[1]):
-                sum += self.image[i][j]
-        return sum / (x[0]*x[1])
+    def find_location_crop(self, event, x, y, flags, param):
+        f = open(resource_path('data/config/location_crop_oj.txt'), 'a')
+        if event == cv2.EVENT_LBUTTONDOWN:
+            f.write(str(x) + "\n")
+            f.write(str(y) + "\n")
+        f.close()
 
-    def check(mean):
-        if mean < 195:
-            return 1
+    def crop_image(self):
+        a = []
+        f = open(resource_path('data/config/location_crop_oj.txt'), 'r+')
+        for i in range(3):
+            x1 = int(f.readline())
+            y1 = int(f.readline())
+            x2 = int(f.readline())
+            y2 = int(f.readline())
+            crop = self.image[y1:y2, x1:x2, :]
+            a.append(crop)
+        f.close()
+        return a
+
+    def check(self, crop):
+        for i in range(3):
+            gray = cv2.cvtColor(crop[i], cv2.COLOR_BGR2GRAY)
+            histr = cv2.calcHist([gray], [0], None, [256], [0, 256])
+            # plt.subplot(121)
+            # plt.imshow(gray)
+            # plt.subplot(122)
+            # plt.plot(histr)
+            # plt.show()
+            for j in range(256):
+                if max(histr) == histr[j]:
+                    if j >= 250:
+                        return 1
         return 0
 
 # if __name__ == "__main__":
 #     Test = CheckOn()
 
-#     # image = cv2.imread(resource_path('data/demo/0.png'))
-#     image = cv2.imread(resource_path('data/demo/Test/preview.jpg'))
-#     # Test.image = cv2.cvtColor(image[140:266, 221:428], cv2.COLOR_BGR2GRAY)
-#     Test.image = cv2.cvtColor(image[155:273, 250:445], cv2.COLOR_BGR2GRAY)
+#     cap = cv2.VideoCapture(1)
+#     cap.set(3, 1280)
+#     cap.set(4, 720)
 
-#     histr = cv2.calcHist([Test.image], [0], None, [256], [0, 256])
-#     plt.subplot(121)
-#     plt.imshow(Test.image)
-#     plt.subplot(122)
-#     plt.plot(histr)
-#     plt.show()
-#     print(Test.calc_mean())
+#     while(True):
+#         # Capture frame-by-frame
+#         ret, frame = cap.read()
+
+#         # Display the resulting frame
+#         cv2.imshow('frame', frame)
+#         key = cv2.waitKey(1) & 0xFF
+#         if key == ord('q'):
+#             break
+#         if key == ord('s'):
+#             cv2.imwrite('preview.jpg', frame)
+    
+#     cap.release()
+#     cv2.destroyAllWindows()
+
+#     image = cv2.imread(resource_path('preview.jpg'))
+#     Test.image = image
+
+#     cv2.namedWindow("image")
+#     cv2.setMouseCallback("image", Test.find_location_crop)
+#     while True:
+#         cv2.imshow("image", image)
+#         if cv2.waitKey(1) & 0xFF == ord("q"):
+#             break
+#     cv2.destroyAllWindows()
+
+#     crop_list = Test.crop_image()
+
+#     print(Test.check(crop_list))

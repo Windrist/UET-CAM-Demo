@@ -47,7 +47,7 @@ class Detect(object):
                 break
         cv2.destroyAllWindows()
 
-    def grabCut(self):
+    def thresh(self):
         
         crop_tray_1 = self.image[self.t1_y_begin:self.t1_y_end, self.t1_x_begin:self.t1_x_end]
         crop_tray_2 = self.image[self.t2_y_begin:self.t2_y_end, self.t2_x_begin:self.t2_x_end]
@@ -55,36 +55,17 @@ class Detect(object):
         gray_tray_1 = cv2.cvtColor(crop_tray_1, cv2.COLOR_BGR2GRAY)
         gray_tray_2 = cv2.cvtColor(crop_tray_2, cv2.COLOR_BGR2GRAY)
 
-        ret_tray_1, thresh_tray_1 = cv2.threshold(gray_tray_1, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        ret_tray_2, thresh_tray_2 = cv2.threshold(gray_tray_2, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
-        mask_detect = np.zeros(crop_tray_1.shape[:2], np.uint8)
-        bgdModel = np.zeros((1, 65), np.float64)
-        fgdModel = np.zeros((1, 65), np.float64)
-        mask_detect[thresh_tray_1 == 255] = 1
-        mask_detect[thresh_tray_1 == 0] = 0
-        cv2.grabCut(crop_tray_1, mask_detect, None, bgdModel, fgdModel, 1, cv2.GC_INIT_WITH_MASK)
-        mask3 = np.where((mask_detect == 2) | (mask_detect == 0), 0, 1).astype('uint8')
-        self.crop_tray_1 = crop_tray_1 * mask3[:, :, np.newaxis]
-
-        mask_detect = np.zeros(crop_tray_2.shape[:2], np.uint8)
-        bgdModel = np.zeros((1, 65), np.float64)
-        fgdModel = np.zeros((1, 65), np.float64)
-        mask_detect[thresh_tray_2 == 255] = 1
-        mask_detect[thresh_tray_2 == 0] = 0
-        cv2.grabCut(crop_tray_2, mask_detect, None, bgdModel, fgdModel, 1, cv2.GC_INIT_WITH_MASK)
-        mask3 = np.where((mask_detect == 2) | (mask_detect == 0), 0, 1).astype('uint8')
-        self.crop_tray_2 = crop_tray_2 * mask3[:, :, np.newaxis]
+        ret_tray_1, self.crop_tray_1 = cv2.threshold(gray_tray_1, 0, 255, cv2.THRESH_OTSU)
+        ret_tray_2, self.crop_tray_2 = cv2.threshold(gray_tray_2, 0, 255, cv2.THRESH_OTSU)
 
     def check(self, crop_img):
-        crop_gray = cv2.cvtColor(crop_img, cv2.COLOR_BGR2GRAY)
         height = crop_img.shape[0]
         width = crop_img.shape[1]
         mask = np.zeros(21)
         for i in range(21):
             k = int(i / 7)
             j = i % 7
-            cut = crop_gray[int(height / 7 * (7 - j - 1)):int(height / 7 * (7 - j)), int(width / 3 * k):int(width / 3 *
+            cut = crop_img[int(height / 7 * (7 - j - 1)):int(height / 7 * (7 - j)), int(width / 3 * k):int(width / 3 *
                                                                                                             (k + 1))]
             histr = cv2.calcHist([cut], [0], None, [256], [0, 256])
             # plt.subplot(121)
@@ -92,10 +73,8 @@ class Detect(object):
             # plt.subplot(122)
             # plt.plot(histr)
             # plt.show()
-            for j in range(256):
-                if max(histr) == histr[j]:
-                    if j <= 10:
-                        mask[i] = 1
+            if histr[255] >= 3000:
+                mask[i] = 1
         return mask
 
 # if __name__ == "__main__":
@@ -104,7 +83,7 @@ class Detect(object):
 #     detect.image = cv2.resize(detect.image, (1920, 1080), interpolation=cv2.INTER_AREA)
 
 #     # detect.get_coord()
-#     detect.grabCut()
+#     detect.thresh()
 #     mask = detect.check(detect.crop_tray_1)
 #     mask = np.append(mask, detect.check(detect.crop_tray_2))
 

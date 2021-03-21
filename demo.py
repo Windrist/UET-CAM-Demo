@@ -43,13 +43,15 @@ class Query(QThread):
     def run(self):
         while True:
             self.progress.emit()
-            time.sleep(3)
+            time.sleep(0.5)
 
-class Camera(QThread):
-    setup = pyqtSignal()
+class Send(QThread):
+    progress = pyqtSignal()
 
     def run(self):
-        self.setup.emit()
+        while True:
+            self.progress.emit()
+            time.sleep(0.1)
 
 class App(QMainWindow):
     def __init__(self):
@@ -75,8 +77,11 @@ class App(QMainWindow):
 
         self.Controller = PLC()
         self.command = "Idle"
+        self.delay = True
+        self.wait = False
         self.demo_count = 0
         self.report_one_time = True
+        self.error_one_time = True
 
         self.count_file = open(resource_path('data/demo/Test/count.txt'), 'r+')
         self.count_current_ok = int(self.count_file.readline())
@@ -178,6 +183,9 @@ class App(QMainWindow):
             table.setFont(self.font)
             table.setStyleSheet("color: rgb(255, 255, 255);")
             self.tray.append(table)
+        for c in range(42):
+            self.tray[int(math.floor(c/21))].setItem(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3), QTableWidgetItem())
+            self.tray[int(math.floor(c/21))].item(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3)).setBackground(QColor(192, 192, 192))
 
         # Table Info Area        
         self.s_name = QLabel("INFORMATION", self)
@@ -249,20 +257,18 @@ class App(QMainWindow):
         self.exit_button.clicked.connect(self.close)
 
         # Create Thread
-        self.camera_thread = Camera()
-        self.camera_thread.setup.connect(self.setup_camera)
         self.main_thread = Thread()
         self.main_thread.progress.connect(self.main_process)
-        # self.plc_thread = Query()
-        # self.main_thread.progress.connect(self.get_command)
         self.demo_thread = Query()
-        self.demo_thread.progress.connect(self.demo)
+        self.demo_thread.progress.connect(self.demo_query)
+        self.send_thread = Send()
+        self.send_thread.progress.connect(self.demo_send)
         
         # Run Thread
-        self.camera_thread.start()
+        self.setup_camera()
         self.main_thread.start()
-        # self.plc_thread.start()
         self.demo_thread.start()
+        self.send_thread.start()
     
     # Hàm stream CAMERA DETECT lên giao diện
     def update_detect_image(self, img):
@@ -354,6 +360,9 @@ class App(QMainWindow):
         # Linh kiện kiểm tra xong sẽ xóa khỏi mảng dữ liệu
         self.Controller.data[self.count] = 0
         self.count += 1
+
+        # Chờ lệnh
+        self.delay = False
     
     # Hàm Khởi tạo giá trị cho Bảng số liệu
     def init_statistic(self):
@@ -392,24 +401,20 @@ class App(QMainWindow):
         ratio_error3.setTextAlignment(Qt.AlignCenter)
         self.statistic_table.setItem(4,2,ratio_error3)
 
+        # Chờ lệnh
+        self.delay = False
+
     def update_data(self, data):
         
         # Update Data to Table
-        c = 0
-        for k in range(2):
-            for j in range(3):
-                for i in range(6,-1,-1):
-                    self.tray[k].setItem(i,j,QTableWidgetItem())
-                    if(int(data[c])):
-                        self.tray[k].item(i,j).setBackground(QColor(102, 102, 255))
-                        self.total += 1
-                    c += 1
+        for c in range(42):
+            self.tray[int(math.floor(c/21))].setItem(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3), QTableWidgetItem())
+            if bool(data[c]):
+                self.tray[int(math.floor(c/21))].item(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3)).setBackground(QColor(102, 102, 255))
+                self.total += 1
 
         # Send Data to PLC
         self.Controller.data = data
-        # self.Controller.sendData()
-        self.Controller.command = "Grip"
-        # self.Controller.sendCommand()
         
     def updateTimer(self):
         cr_time = QTime.currentTime()
@@ -447,7 +452,7 @@ class App(QMainWindow):
 
                 # Xử lý Ảnh
                 detect.image = cv2.resize(image, (1920, 1080), interpolation=cv2.INTER_AREA)
-                detect.grabCut()
+                detect.thresh()
 
                 # Detect YES/NO
                 result = detect.check(detect.crop_tray_1)
@@ -475,19 +480,21 @@ class App(QMainWindow):
 
                 self.update_check_image(resize_img) # Đưa video lên giao diện
                 
-                # Kiểm tra Jig
-                CheckOn = CheckOn()
-                CheckOn.image = image[150:280, 245:445]
+                # Khai báo kiểm tra Jig
+                CheckOnOK = CheckOn()
+                CheckOnOK.image = image
 
                 # Nếu không có linh kiện trên Jig
-                if CheckOn.check(CheckOn.calc_mean()) == 0:
-                    self.command = "SOS"
+                if CheckOnOK.check(CheckOnOK.crop_image()) == 0:
+                    self.Controller.command = "SOS"
+                    self.Controller.sendCommand()
+                    self.wait = False
+                    self.command = "Wait"
                 
                 # Nếu có linh kiện trên Jig
                 else:
                     # Kiểm tra lệch
-                    check_image = cv2.resize(CheckOn.image, (1600, 1040))
-                    crop_list = checkAlign.crop_image(check_image)
+                    crop_list = checkAlign.crop_image(image)
                     mean = checkAlign.calc_mean_all(crop_list)
                     check = checkAlign.check(mean)
                     
@@ -507,7 +514,7 @@ class App(QMainWindow):
 
                         # Đổi State -> Gửi State mới cho PLC
                         self.Controller.command = "Grip-1"
-                        # self.Controller.sendCommand()
+                        self.wait = False
 
                     # Kết quả trả về linh kiện lệch
                     else:
@@ -525,73 +532,70 @@ class App(QMainWindow):
 
                         # Đổi State -> Gửi State mới cho PLC
                         self.Controller.command = "Grip-0"
-                        # self.Controller.sendCommand()
-                    
-                    # Đổi State: Chờ lệnh
+                        self.wait = False
                     self.command = "Wait"
+                        
+        # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
+        elif self.command == "1":
+            self.update_statistic(self.command)
+            self.command = "Wait"
+        elif self.command == "0":
+            self.update_statistic(self.command)
+            self.command = "Wait"
+        elif self.command == "-1":
+            self.update_statistic(self.command)
+            self.command = "Wait"
+        elif self.command == "404":
+            self.update_statistic(self.command)
+            self.command = "Wait"
 
-            # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
-            elif self.command == "1":
-                self.update_statistic(self.command)
-                self.Controller.command = "Grip"
-                # self.Controller.sendCommand()
-                self.command = "Wait"
-            elif self.command == "0":
-                self.update_statistic(self.command)
-                self.Controller.command = "Grip"
-                # self.Controller.sendCommand()
-                self.command = "Wait"
-            elif self.command == "-1":
-                self.update_statistic(self.command)
-                self.Controller.command = "Grip"
-                # self.Controller.sendCommand()
-                self.command = "Wait"
-            elif self.command == "404":
-                self.update_statistic(self.command)
-                self.Controller.command = "Grip"
-                # self.Controller.sendCommand()
-                self.command = "Wait"
+        # Kết thúc -> Xuất ra thông báo
+        elif self.command == "Finish":
+            if self.report_one_time:
+                self.report_one_time = False
+                QMessageBox.about(self, "Kiểm Tra Hoàn Tất", "Đã Kiểm Tra " + str(self.total) + " linh kiện!\n" + "Còn " + str(self.number_error1) + " linh kiện cần kiểm tra lại!")
+                self.command = "Stop"
 
-            # Kết thúc -> Xuất ra thông báo
-            elif self.command == "Report":
-                if self.report_one_time:
-                    self.report_one_time = False
-                    QMessageBox.about(self, "Kiểm Tra Hoàn Tất", "Đã Kiểm Tra " + str(self.total) + " linh kiện!\n" + "Còn " + str(self.number_error1) + " linh kiện cần kiểm tra lại!")
-                    self.command = "Idle"
-
-            # Dừng khẩn cấp
-            elif self.command == "SOS":
+        # Dừng khẩn cấp
+        elif self.command == "SOS":
+            if self.error_one_time:
+                self.error_one_time = False
                 QMessageBox.about(self, "Dừng Khẩn Cấp", "Không thấy linh kiện trên Jig!")
+                self.command = "Stop"
 
     # Init Camera
     def setup_camera(self):
-        # self.cap_detect = cv2.VideoCapture(1) # Khai báo USB Camera Detect Config
+        # Khai báo USB Camera Detect Config
+        # self.cap_detect = cv2.VideoCapture(0) # Khai báo USB Camera Detect Config
+        # self.cap_detect.set(3, 1920)
+        # self.cap_detect.set(4, 1080)
         self.get_cap_detect = True
-        # self.cap_check = cv2.VideoCapture(0) # Khai báo USB Camera Check Config
+
+        # Khai báo USB Camera Check Config
+        # self.cap_check = cv2.VideoCapture(1)
+        # self.cap_check.set(3, 1280)
+        # self.cap_check.set(4, 720)
         self.get_cap_check = True
 
-    # Loop Get Command from PLC
-    # def get_command(self):
-    #     self.command = self.Controller.queryCommand()
-
     # Demo without PLC
-    def demo(self):
+    def demo_query(self):
         if self.command == "Wait":
-            if self.demo_count < self.total:
+            if self.demo_count <= self.total:
                 if self.Controller.command == "Grip-0":
-                    self.command = "-1"
+                        self.command = "-1"
                 elif self.Controller.command == "Grip-1":
-                    rand_list = ['1', '0', '404', '1', '1']
-                    self.command = random.choice(rand_list)
-            elif self.demo_count == self.total:
-                if self.Controller.command == "Grip-0":
-                    self.command = "-1"
-                elif self.Controller.command == "Grip-1":
-                    rand_list = ['1', '0', '404', '1', '1', '1', '1', '1']
-                    self.command = random.choice(rand_list)
-                self.demo_count += 1
+                        rand_list = ['1', '0', '404', '1', '1', '1', '1', '1']
+                        self.command = random.choice(rand_list)
+                if self.demo_count == self.total:
+                    self.demo_count += 1
             else:
-                self.command = "Report"
+                self.command = "Finish"      
+
+    def demo_send(self):
+        if self.delay == False:
+            self.Controller.command = "Grip"
+            self.wait = False
+            self.delay = True
 
     # Demo Press Key to change State
     def keyPressEvent(self, event):
@@ -599,6 +603,43 @@ class App(QMainWindow):
             self.command = "Detect"
         elif event.key() == Qt.Key_Escape:
             self.command = "Idle"
+            self.cam1.clear()
+            self.cam2.clear()
+            for c in range(42):
+                self.tray[int(math.floor(c/21))].setItem(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3), QTableWidgetItem())
+                self.tray[int(math.floor(c/21))].item(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3)).setBackground(QColor(192, 192, 192))
+            self.statistic_table.clear()
+            tested_item = QTableWidgetItem("TESTED")
+            tested_item.setTextAlignment(Qt.AlignCenter)
+            tested_item.setFont(self.font)
+            self.statistic_table.setItem(0, 0, tested_item)
+
+            success_item = QTableWidgetItem("SUCCESS")
+            success_item.setTextAlignment(Qt.AlignCenter)
+            success_item.setFont(self.font)
+            self.statistic_table.setItem(1, 0, success_item)
+
+            error1_item = QTableWidgetItem("NEED RETEST")
+            error1_item.setTextAlignment(Qt.AlignCenter)
+            error1_item.setFont(self.font)
+            self.statistic_table.setItem(2, 0, error1_item)
+
+            error2_item = QTableWidgetItem("CONNECTION ERROR")
+            error2_item.setTextAlignment(Qt.AlignCenter)
+            error2_item.setFont(self.font)
+            self.statistic_table.setItem(3, 0, error2_item)
+
+            error3_item = QTableWidgetItem("FAILURE")
+            error3_item.setTextAlignment(Qt.AlignCenter)
+            error3_item.setFont(self.font)
+            self.statistic_table.setItem(4, 0, error3_item)
+            self.textBox.clear()
+
+            self.report_one_time = True
+            self.error_one_time = True
+            self.Controller.command = "Idle"
+            self.demo_count = 0
+            self.wait = False
         elif (event.key() == Qt.Key_F12) and (self.Controller.command == "Grip"):
             self.command = "Check"
             self.demo_count += 1

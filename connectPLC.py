@@ -6,7 +6,7 @@ class PLC(object):
     def __init__(self):
         
         # Init Variables
-        self.IP = '192.168.1.2'         # IP của PLC
+        self.IP = '192.168.128.2'       # IP của PLC
         self.slot = 1                   # Lấy trong TIA Portal
         self.rack = 0                   # Lấy trong TIA Portal
         self.DBNumber = 1               # Data Block cần nhận dữ liệu (DB1, DB2,...)
@@ -56,7 +56,7 @@ class PLC(object):
                     print("Command Corrupted!")
                     return
                 plc.db_write(self.DBNumber, self.dataStart, data)
-                print("Command Write Successfully!")
+                # print("Command Write Successfully!")
                 again = False
             except Exception as e:
                 print("Cannot Send Command! Error!")
@@ -74,7 +74,7 @@ class PLC(object):
                     data = plc.db_read(self.DBNumber, 256+int(i/8), 1)
                     snap7.util.set_bool(data, 0, i%8, self.data[i])
                     plc.db_write(self.DBNumber, 256+int(i/8), data)
-                print("Data Write Successfully!")
+                # print("Data Write Successfully!")
                 again = False
             except Exception as e:
                 print("Cannot Send Data! Error!")

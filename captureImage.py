@@ -3,7 +3,7 @@ import cv2
 
 if __name__ == "__main__":
     # Camera configuration
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
     count = 0
     
     while True:
