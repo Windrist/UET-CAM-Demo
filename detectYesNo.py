@@ -77,14 +77,16 @@ class Detect(object):
                 mask[i] = 1
         return mask
 
-# if __name__ == "__main__":
-#     detect = Detect()
-#     detect.image = cv2.imread('data/demo/Detect/origin.jpg')
-#     detect.image = cv2.resize(detect.image, (1920, 1080), interpolation=cv2.INTER_AREA)
+if __name__ == "__main__":
+    detect = Detect()
+    detect.image = cv2.imread('data/demo/Detect/origin.jpg')
+    detect.image = cv2.resize(detect.image, (1920, 1080), interpolation=cv2.INTER_AREA)
 
-#     # detect.get_coord()
-#     detect.thresh()
-#     mask = detect.check(detect.crop_tray_1)
-#     mask = np.append(mask, detect.check(detect.crop_tray_2))
+    # detect.get_coord()
+    detect.thresh()
+    mask = detect.check(detect.crop_tray_1)
+    mask = np.append(mask, detect.check(detect.crop_tray_2))
+    cv2.imshow("image", detect.crop_tray_1)
+    cv2.waitKey(0)
 
-#     print(mask.shape)
+    print(mask.shape)

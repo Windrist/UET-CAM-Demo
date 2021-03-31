@@ -1,3 +1,4 @@
+from PyQt5.QtCore import QFileSelector
 import snap7
 import numpy as np
 
@@ -75,6 +76,23 @@ class PLC(object):
                     snap7.util.set_bool(data, 0, i%8, self.data[i])
                     plc.db_write(self.DBNumber, 256+int(i/8), data)
                 # print("Data Write Successfully!")
+                again = False
+            except Exception as e:
+                print("Cannot Send Data! Error!")
+            finally:
+                if plc.get_connected():
+                    plc.disconnect()
+    
+    def sendCount(self, count):
+        plc = snap7.client.Client()
+        again = True
+        while again:
+            try:
+                plc.connect(self.IP, self.rack, self.slot)
+                data = plc.db_read(self.DBNumber, 262, 1)
+                snap7.util.set_int(data, 0, count)
+                plc.db_write(self.DBNumber, 262, data)
+                # print("Count Write Successfully!")
                 again = False
             except Exception as e:
                 print("Cannot Send Data! Error!")

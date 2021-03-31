@@ -479,15 +479,15 @@ class App(QMainWindow):
             if self.get_cap_check == True:
 
                 # Demo có CAMERA CHECK
-                ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
-                resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
-
-                # Demo ảnh có sẵn
-                # rand_list = os.listdir(resource_path('data/demo/Test/data'))
-                # folder = random.choice(rand_list)
-                # image = cv2.imread(resource_path('data/demo/Test/data/' + folder + '/image.jpg'))
+                # ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
                 # resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
 
+                # Demo ảnh có sẵn
+                rand_list = os.listdir(resource_path('data/demo/Test/data'))
+                folder = random.choice(rand_list)
+                image = cv2.imread(resource_path('data/demo/Test/data/' + folder + '/image.jpg'))
+                resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
+                
                 self.update_check_image(resize_img) # Đưa video lên giao diện
                 
                 # Khai báo kiểm tra Jig
@@ -587,9 +587,9 @@ class App(QMainWindow):
         self.get_cap_detect = True
 
         # Khai báo USB Camera Check Config
-        self.cap_check = cv2.VideoCapture(1)
-        self.cap_check.set(3, 1280)
-        self.cap_check.set(4, 720)
+        # self.cap_check = cv2.VideoCapture(1)
+        # self.cap_check.set(3, 1280)
+        # self.cap_check.set(4, 720)
         self.get_cap_check = True
 
     # Loop Get Command from PLC
@@ -636,6 +636,7 @@ class App(QMainWindow):
             
             self.report_one_time = True
             self.error_one_time = True
+            self.count = 0
             self.Controller.command = "Idle"
             self.Controller.sendCommand()
             self.wait = False
@@ -645,13 +646,14 @@ class App(QMainWindow):
         if self.delay == False:
             self.Controller.command = "Grip"
             self.Controller.sendCommand()
+            self.Controller.sendCount(self.count)
             self.wait = False
 
     # Demo Press Key to change State
-    def keyPressEvent(self, event):
-        if (event.key() == Qt.Key_Return) and (self.Controller.command == "Grip"):
-            self.command = "Check"
-            self.demo_count += 1
+    # def keyPressEvent(self, event):
+    #     if (event.key() == Qt.Key_Return) and (self.Controller.command == "Grip"):
+    #         self.command = "Check"
+    #         self.demo_count += 1
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
