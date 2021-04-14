@@ -35,7 +35,7 @@ class Thread(QThread):
     def run(self):
         while True:
             self.progress.emit()
-            time.sleep(0.1)
+            time.sleep(0.5)
 
 class Query(QThread):
     progress = pyqtSignal()
@@ -51,7 +51,7 @@ class Send(QThread):
     def run(self):
         while True:
             self.progress.emit()
-            time.sleep(1)
+            time.sleep(3)
 
 class Camera(QThread):
     setup = pyqtSignal()
@@ -526,7 +526,6 @@ class App(QMainWindow):
                         # Đổi State -> Gửi State mới cho PLC
                         self.Controller.command = "Grip-1"
                         self.Controller.sendCommand()
-                        self.wait = False
 
                     # Kết quả trả về linh kiện lệch
                     else:
@@ -545,20 +544,24 @@ class App(QMainWindow):
                         # Đổi State -> Gửi State mới cho PLC
                         self.Controller.command = "Grip-0"
                         self.Controller.sendCommand()
-                self.wait = False
-                self.command = "Wait"
+                    self.wait = False
+                    self.command = "Wait"
 
         # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
         elif self.command == "1":
+            self.wait = True
             self.update_statistic(self.command)
             self.command = "Wait"
         elif self.command == "0":
+            self.wait = True
             self.update_statistic(self.command)
             self.command = "Wait"
         elif self.command == "-1":
+            self.wait = True
             self.update_statistic(self.command)
             self.command = "Wait"
         elif self.command == "404":
+            self.wait = True
             self.update_statistic(self.command)
             self.command = "Wait"
 
@@ -594,11 +597,11 @@ class App(QMainWindow):
 
     # Loop Get Command from PLC
     def get_command(self):
+        print(self.command + " - " + self.Controller.queryCommand())
         if self.Controller.queryCommand() != "Finish" and self.Controller.queryCommand() != "Reset" and self.wait == False:
             self.command = self.Controller.queryCommand()
-            if self.command != "Idle":
+            if self.command != "Idle" and self.command != "Grip" and self.command != "Grip-1" and self.command != "Grip-0":
                 self.wait = True
-                self.delay = True
         elif self.Controller.queryCommand() == "Finish":
             self.Controller.command = self.Controller.queryCommand()
         elif self.Controller.queryCommand() == "Reset":
@@ -640,14 +643,17 @@ class App(QMainWindow):
             self.Controller.command = "Idle"
             self.Controller.sendCommand()
             self.wait = False
+            self.delay = True
 
     # Loop Send Command to PLC
     def send_command(self):
         if self.delay == False:
             self.Controller.command = "Grip"
             self.Controller.sendCommand()
-            self.Controller.sendCount(self.count)
+            # if self.count > 0:
+            self.Controller.sendCount(self.count+1)
             self.wait = False
+            self.delay = True
 
     # Demo Press Key to change State
     # def keyPressEvent(self, event):
