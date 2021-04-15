@@ -14,7 +14,6 @@ class PLC(object):
         self.dataStart = 1              # Vị trí bit con trỏ nhận dữ liệu
         self.dataSize = 254             # Độ dài của data (1 byte, 4 bytes, 8 bytes,...)
         self.data = np.zeros(42)        # Biến truyền data cho PLC
-        self.command = ""               # Biến truyền lệnh cho PLC
     
     # Test Connection with PLC
     def testConnection(self):
@@ -43,16 +42,31 @@ class PLC(object):
             finally:
                 if plc.get_connected():
                     plc.disconnect()
-    
-    # Write Data Function
-    def sendCommand(self):
+
+    def querySignal(self):
         plc = snap7.client.Client()
         again = True
         while again:
             try:
                 plc.connect(self.IP, self.rack, self.slot)
                 data = plc.db_read(self.DBNumber, self.dataStart, self.dataSize)
-                snap7.util.set_string(data, -1, self.command, self.dataSize)
+                again = False
+                return snap7.util.get_bool(data, 0, 0)
+            except Exception as e:
+                print("Cannot Get Command! Error!")
+            finally:
+                if plc.get_connected():
+                    plc.disconnect()
+    
+    # Write Data Function
+    def sendCommand(self, command):
+        plc = snap7.client.Client()
+        again = True
+        while again:
+            try:
+                plc.connect(self.IP, self.rack, self.slot)
+                data = plc.db_read(self.DBNumber, self.dataStart, self.dataSize)
+                snap7.util.set_string(data, -1, command, self.dataSize)
                 if not data.strip():
                     print("Command Corrupted!")
                     return
@@ -91,6 +105,23 @@ class PLC(object):
                 plc.connect(self.IP, self.rack, self.slot)
                 data = plc.db_read(self.DBNumber, 262, 1)
                 snap7.util.set_int(data, 0, count)
+                plc.db_write(self.DBNumber, 262, data)
+                # print("Count Write Successfully!")
+                again = False
+            except Exception as e:
+                print("Cannot Send Data! Error!")
+            finally:
+                if plc.get_connected():
+                    plc.disconnect()
+    
+    def sendSignal(self, signal):
+        plc = snap7.client.Client()
+        again = True
+        while again:
+            try:
+                plc.connect(self.IP, self.rack, self.slot)
+                data = plc.db_read(self.DBNumber, 262, 1)
+                snap7.util.set_bool(data, 0, 0, signal)
                 plc.db_write(self.DBNumber, 262, data)
                 # print("Count Write Successfully!")
                 again = False
