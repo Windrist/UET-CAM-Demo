@@ -35,6 +35,7 @@ class Thread(QThread):
     def run(self):
         while True:
             self.progress.emit()
+            time.sleep(0.1)
 
 class Query(QThread):
     progress = pyqtSignal()
@@ -42,6 +43,7 @@ class Query(QThread):
     def run(self):
         while True:
             self.progress.emit()
+            time.sleep(0.5)
 
 class Camera(QThread):
     setup = pyqtSignal()
@@ -65,6 +67,7 @@ class App(QMainWindow):
         self.number_error2 = 0
         self.number_error3 = 0
         self.count = 0
+        self.coord = 0
 
         self.cap_detect = any
         self.cap_check = any
@@ -73,7 +76,7 @@ class App(QMainWindow):
 
         self.Controller = PLC()
         self.command = ""
-        self.wait = False
+        self.wait = True
 
         self.count_file = open(resource_path('data/demo/Test/count.txt'), 'r+')
         self.count_current_ok = int(self.count_file.readline())
@@ -281,7 +284,7 @@ class App(QMainWindow):
         # Reset giá trị đếm khi kiểm tra hết linh kiện
         if self.count == 42:
             self.count = 0
-        
+
         # Bỏ qua khi không có linh kiện trong mảng dữ liệu
         while self.Controller.data[self.count] != 1:
             self.count += 1
@@ -296,7 +299,7 @@ class App(QMainWindow):
         
         # Lấy số liệu linh kiện
         tray_idx = self.count // 21
-        row = 6 - self.count % 21 % 7
+        row = self.count % 21 % 7
         col = self.count % 21 // 7
 
         # Thông báo đẩy
@@ -399,6 +402,7 @@ class App(QMainWindow):
         # Send Data to PLC
         self.Controller.data = data
         self.Controller.sendData()
+        self.Controller.sendTotal(self.total)
         
     def updateTimer(self):
         cr_time = QTime.currentTime()
@@ -406,198 +410,217 @@ class App(QMainWindow):
         self.time_label.setText(time)
 
     def process(self):
-        if self.wait == False:
-            if self.command == "Detect":
+        if self.command == "Reset": 
+            # Gửi tín hiệu chờ
+            self.wait = True
+            self.Controller.sendSignal(0, self.wait)
+            self.command = "Wait"
+
+            self.cam1.clear()
+            self.cam2.clear()
+            for c in range(42):
+                self.tray[int(math.floor(c/21))].setItem(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3), QTableWidgetItem())
+                self.tray[int(math.floor(c/21))].item(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3)).setBackground(QColor(192, 192, 192))
+            self.statistic_table.clear()
+            tested_item = QTableWidgetItem("TESTED")
+            tested_item.setTextAlignment(Qt.AlignCenter)
+            tested_item.setFont(self.font)
+            self.statistic_table.setItem(0, 0, tested_item)
+
+            success_item = QTableWidgetItem("SUCCESS")
+            success_item.setTextAlignment(Qt.AlignCenter)
+            success_item.setFont(self.font)
+            self.statistic_table.setItem(1, 0, success_item)
+
+            error1_item = QTableWidgetItem("NEED RETEST")
+            error1_item.setTextAlignment(Qt.AlignCenter)
+            error1_item.setFont(self.font)
+            self.statistic_table.setItem(2, 0, error1_item)
+
+            error2_item = QTableWidgetItem("CONNECTION ERROR")
+            error2_item.setTextAlignment(Qt.AlignCenter)
+            error2_item.setFont(self.font)
+            self.statistic_table.setItem(3, 0, error2_item)
+
+            error3_item = QTableWidgetItem("FAILURE")
+            error3_item.setTextAlignment(Qt.AlignCenter)
+            error3_item.setFont(self.font)
+            self.statistic_table.setItem(4, 0, error3_item)
+            self.textBox.clear()
+
+            self.count = 0
+            self.total = 0
+            self.Controller.sendCommand("Idle")
+            self.command = ""
+
+            # Gửi tín hiệu xong việc
+            self.wait = True
+            self.Controller.sendSignal(0, self.wait)
+
+        elif self.command == "Detect":
+            # Gửi tín hiệu chờ
+            self.wait = True
+            self.Controller.sendSignal(0, self.wait)
+            self.command = "Wait"
+
+            # Kiểm tra xem đã nhận Camera Check chưa
+            if self.get_cap_detect == True:
                 
-                # Gửi tín hiệu chờ
-                self.wait = True
-                self.Controller.sendSignal(self.wait)
+                # Lấy dữ liệu từ camera
+                # ret, image = self.cap_detect.read()
+                image = cv2.imread(resource_path('data/demo/Detect/origin.jpg'))
+                resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
+                detect = Detect()
 
-                # Kiểm tra xem đã nhận Camera Check chưa
-                if self.get_cap_detect == True:
-                    
-                    # Lấy dữ liệu từ camera
-                    # ret, image = self.cap_detect.read()
-                    image = cv2.imread(resource_path('data/demo/Detect/origin.jpg'))
-                    resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
-                    detect = Detect()
+                # Xử lý Ảnh
+                detect.image = cv2.resize(image, (1920, 1080), interpolation=cv2.INTER_AREA)
+                detect.thresh()
 
-                    # Xử lý Ảnh
-                    detect.image = cv2.resize(image, (1920, 1080), interpolation=cv2.INTER_AREA)
-                    detect.thresh()
+                # Detect YES/NO
+                result = detect.check(detect.crop_tray_1)
+                result = np.append(result, detect.check(detect.crop_tray_2))
+                self.update_detect_image(resize_img) # Đưa ảnh lên giao diện
 
-                    # Detect YES/NO
-                    result = detect.check(detect.crop_tray_1)
-                    result = np.append(result, detect.check(detect.crop_tray_2))
-                    self.update_detect_image(resize_img) # Đưa ảnh lên giao diện
+                # Gửi kết quả Detect YES/NO cho PLC và Table
+                self.update_data(result)
+                self.init_statistic()
+                self.command = "Wait"
 
-                    # Gửi kết quả Detect YES/NO cho PLC và Table
-                    self.update_data(result)
-                    self.init_statistic()
+                self.Controller.sendCommand("Grip")
+            
+            # Gửi tín hiệu xong việc
+            self.wait = False
+            self.Controller.sendSignal(0, self.wait)
+        
+        else:
+            if self.wait == False:
+                if self.command == "Check":
+                    # Gửi tín hiệu chờ
+                    self.wait = True
+                    self.Controller.sendSignal(0, self.wait)
                     self.command = "Wait"
 
-                    self.Controller.sendCommand("Grip")
-                    self.Controller.sendCount(self.count)
-                
-                # Gửi tín hiệu xong việc
-                self.wait = False
-                self.Controller.sendSignal(self.wait)
-                
-            elif self.command == "Check":
+                    # Kiểm tra xem đã nhận Camera Check chưa
+                    if self.get_cap_check == True:
 
-                # Gửi tín hiệu chờ
-                self.wait = True
-                self.Controller.sendSignal(self.wait)
+                        # Demo có CAMERA CHECK
+                        # ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
+                        # resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
 
-                # Kiểm tra xem đã nhận Camera Check chưa
-                if self.get_cap_check == True:
+                        # Demo ảnh có sẵn
+                        rand_list = os.listdir(resource_path('data/demo/Test/data'))
+                        folder = random.choice(rand_list)
+                        image = cv2.imread(resource_path('data/demo/Test/data/' + folder + '/image.jpg'))
+                        resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
+                        
+                        self.update_check_image(resize_img) # Đưa video lên giao diện
+                        
+                        # Khai báo kiểm tra Jig
+                        CheckOnOK = CheckOn()
+                        CheckOnOK.image = image
 
-                    # Demo có CAMERA CHECK
-                    # ret, image = self.cap_check.read() # Lấy dữ liệu từ camera
-                    # resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
-
-                    # Demo ảnh có sẵn
-                    rand_list = os.listdir(resource_path('data/demo/Test/data'))
-                    folder = random.choice(rand_list)
-                    image = cv2.imread(resource_path('data/demo/Test/data/' + folder + '/image.jpg'))
-                    resize_img = cv2.resize(image, (int(717 * self.width_rate), int(450 * self.height_rate)), interpolation = cv2.INTER_AREA) # Resize cho Giao diện
-                    
-                    self.update_check_image(resize_img) # Đưa video lên giao diện
-                    
-                    # Khai báo kiểm tra Jig
-                    CheckOnOK = CheckOn()
-                    CheckOnOK.image = image
-
-                    # Nếu không có linh kiện trên Jig
-                    if CheckOnOK.check(CheckOnOK.crop_image()) == 0:
-                        self.Controller.sendCommand("SOS")
-                    
-                    # Nếu có linh kiện trên Jig
-                    else:
-
-                        # Kiểm tra lệch
-                        crop_list = checkAlign.crop_image(image)
-                        mean = checkAlign.calc_mean_all(crop_list)
-                        check = checkAlign.check(mean)
-
-                        # Kết quả trả về linh kiện không lệch
-                        if check:
-                            # Auto lưu dữ liệu kiểm thử
-                            # self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
-                            # os.mkdir(resource_path('data/demo/Test/data/OK-{}'.format(self.count_current_ok)))
-                            # cv2.imwrite('data/demo/Test/data/OK-{}/image.jpg'.format(self.count_current_ok), image)
-                            # f = open(resource_path('data/demo/Test/data/OK-{}/mean.txt'.format(self.count_current_ok)), 'x')
-                            # for i in range(4):
-                            #     cv2.imwrite('data/demo/Test/data/OK-{}/'.format(self.count_current_ok) + 'crop_{}.jpg'.format(i+1), crop_list[i])
-                            #     f.write(str(int(mean[i])) + " ")
-                            # self.count_current_ok += 1
-                            # self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
-                            # self.count_file.close()
-
-                            # Đổi State -> Gửi State mới cho PLC
-                            self.Controller.sendCommand("Grip-1")
-
-                        # Kết quả trả về linh kiện lệch
+                        # Nếu không có linh kiện trên Jig
+                        if CheckOnOK.check(CheckOnOK.crop_image()) == 0:
+                            self.Controller.sendCommand("SOS")
+                        
+                        # Nếu có linh kiện trên Jig
                         else:
-                            # Auto lưu dữ liệu kiểm thử
-                            # self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
-                            # os.mkdir(resource_path('data/demo/Test/data/NG-{}'.format(self.count_current_ng)))
-                            # cv2.imwrite('data/demo/Test/data/NG-{}/image.jpg'.format(self.count_current_ng), image)
-                            # f = open(resource_path('data/demo/Test/data/NG-{}/mean.txt'.format(self.count_current_ng)), 'x')
-                            # for i in range(4):
-                            #     cv2.imwrite('data/demo/Test/data/NG-{}/'.format(self.count_current_ng) + 'crop_{}.jpg'.format(i+1), crop_list[i])
-                            #     f.write(str(int(mean[i])) + " ")
-                            # self.count_current_ng += 1
-                            # self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
-                            # self.count_file.close()
+                            # Kiểm tra lệch
+                            crop_list = checkAlign.crop_image(image)
+                            mean = checkAlign.calc_mean_all(crop_list)
+                            check = checkAlign.check(mean)
 
-                            # Đổi State -> Gửi State mới cho PLC
-                            self.Controller.sendCommand("Grip-0")
+                            # Kết quả trả về linh kiện không lệch
+                            if check:
+                                # Auto lưu dữ liệu kiểm thử
+                                # self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
+                                # os.mkdir(resource_path('data/demo/Test/data/OK-{}'.format(self.count_current_ok)))
+                                # cv2.imwrite('data/demo/Test/data/OK-{}/image.jpg'.format(self.count_current_ok), image)
+                                # f = open(resource_path('data/demo/Test/data/OK-{}/mean.txt'.format(self.count_current_ok)), 'x')
+                                # for i in range(4):
+                                #     cv2.imwrite('data/demo/Test/data/OK-{}/'.format(self.count_current_ok) + 'crop_{}.jpg'.format(i+1), crop_list[i])
+                                #     f.write(str(int(mean[i])) + " ")
+                                # self.count_current_ok += 1
+                                # self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
+                                # self.count_file.close()
+
+                                # Đổi State -> Gửi State mới cho PLC
+                                self.Controller.sendCommand("Grip-1")
+
+                            # Kết quả trả về linh kiện lệch
+                            else:
+                                # Auto lưu dữ liệu kiểm thử
+                                # self.count_file = open(resource_path('data/demo/Test/count.txt'), 'w')
+                                # os.mkdir(resource_path('data/demo/Test/data/NG-{}'.format(self.count_current_ng)))
+                                # cv2.imwrite('data/demo/Test/data/NG-{}/image.jpg'.format(self.count_current_ng), image)
+                                # f = open(resource_path('data/demo/Test/data/NG-{}/mean.txt'.format(self.count_current_ng)), 'x')
+                                # for i in range(4):
+                                #     cv2.imwrite('data/demo/Test/data/NG-{}/'.format(self.count_current_ng) + 'crop_{}.jpg'.format(i+1), crop_list[i])
+                                #     f.write(str(int(mean[i])) + " ")
+                                # self.count_current_ng += 1
+                                # self.count_file.write(str(self.count_current_ok) + "\n" + str(self.count_current_ng))
+                                # self.count_file.close()
+
+                                # Đổi State -> Gửi State mới cho PLC
+                                self.Controller.sendCommand("Grip-0")
+                    
+                    # Gửi tín hiệu xong việc
+                    self.wait = False
+                    self.Controller.sendSignal(0, self.wait)
+
+                # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
+                elif self.command == "1" or self.command == "0" or self.command == "-1" or self.command == "404":
+                    # Gửi tín hiệu chờ
+                    self.wait = True
+                    self.Controller.sendSignal(0, self.wait)
+                    result = self.command
+                    self.command = "Wait"
+
+                    self.update_statistic(result)
+                    self.Controller.sendCommand("Grip")
+
+                    # Gửi tín hiệu xong việc
+                    self.wait = False
+                    self.Controller.sendSignal(0, self.wait)
+
+                # Kết thúc -> Xuất ra thông báo
+                elif self.command == "Finish":
+                    # Gửi tín hiệu chờ
+                    self.wait = True
+                    self.Controller.sendSignal(0, self.wait)
+                    self.command = "Wait"        
+                    
+                    QMessageBox.about(self, "Kiểm Tra Hoàn Tất", "Đã Kiểm Tra " + str(self.total) + " linh kiện!\n" + "Còn " + str(self.number_error1) + " linh kiện cần kiểm tra lại!")
+                    
+                    # Gửi tín hiệu xong việc
+                    self.wait = False
+                    self.Controller.sendSignal(0, self.wait)
+
+                # Dừng khẩn cấp
+                elif self.command == "Interrupt":
+                    # Gửi tín hiệu chờ
+                    self.wait = True
+                    self.Controller.sendSignal(0, self.wait)
+                    self.command = "Wait"
+
+                    QMessageBox.about(self, "Dừng Khẩn Cấp", "Không thấy linh kiện trên Jig!")
+                    
+                    # Gửi tín hiệu xong việc
+                    self.wait = False
+                    self.Controller.sendSignal(0, self.wait)
                 
-                # Gửi tín hiệu xong việc
-                self.wait = False
-                self.Controller.sendSignal(self.wait)
+                # Dừng khẩn cấp
+                elif self.command == "Stop":
+                    # Gửi tín hiệu chờ
+                    self.wait = True
+                    self.Controller.sendSignal(0, self.wait)
+                    self.command = "Wait"
 
-            # Nhận kết quả từ PLC -> Cập nhật bảng số liệu -> Gửi lệnh cho PLC tiếp tục gắp linh kiện mới -> Chờ tay gắp
-            elif self.command == "1" or self.command == "0" or self.command == "-1" or self.command == "404":
-                
-                # Gửi tín hiệu chờ
-                self.wait = True
-                self.Controller.sendSignal(self.wait)
-
-                self.update_statistic(self.command)
-                self.Controller.sendCommand("Grip")
-                self.Controller.sendCount(self.count)
-
-                # Gửi tín hiệu xong việc
-                self.wait = False
-                self.Controller.sendSignal(self.wait)
-
-            # Kết thúc -> Xuất ra thông báo
-            elif self.command == "Finish":
-
-                # Gửi tín hiệu chờ
-                self.wait = True
-                self.Controller.sendSignal(self.wait)            
-                
-                QMessageBox.about(self, "Kiểm Tra Hoàn Tất", "Đã Kiểm Tra " + str(self.total) + " linh kiện!\n" + "Còn " + str(self.number_error1) + " linh kiện cần kiểm tra lại!")
-                self.command = "Stop"
-                
-                # Gửi tín hiệu xong việc
-                self.wait = False
-                self.Controller.sendSignal(self.wait)
-
-            # Dừng khẩn cấp
-            elif self.command == "Interrupt":
-
-                # Gửi tín hiệu chờ
-                self.wait = True
-                self.Controller.sendSignal(self.wait)
-
-                QMessageBox.about(self, "Dừng Khẩn Cấp", "Không thấy linh kiện trên Jig!")
-                self.command = "Stop"
-                
-                # Gửi tín hiệu xong việc
-                self.wait = False
-                self.Controller.sendSignal(self.wait)
-
-            elif self.command == "Reset":
-                self.cam1.clear()
-                self.cam2.clear()
-                for c in range(42):
-                    self.tray[int(math.floor(c/21))].setItem(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3), QTableWidgetItem())
-                    self.tray[int(math.floor(c/21))].item(c % 7, int(math.floor(c/7) - math.floor(c/21) * 3)).setBackground(QColor(192, 192, 192))
-                self.statistic_table.clear()
-                tested_item = QTableWidgetItem("TESTED")
-                tested_item.setTextAlignment(Qt.AlignCenter)
-                tested_item.setFont(self.font)
-                self.statistic_table.setItem(0, 0, tested_item)
-
-                success_item = QTableWidgetItem("SUCCESS")
-                success_item.setTextAlignment(Qt.AlignCenter)
-                success_item.setFont(self.font)
-                self.statistic_table.setItem(1, 0, success_item)
-
-                error1_item = QTableWidgetItem("NEED RETEST")
-                error1_item.setTextAlignment(Qt.AlignCenter)
-                error1_item.setFont(self.font)
-                self.statistic_table.setItem(2, 0, error1_item)
-
-                error2_item = QTableWidgetItem("CONNECTION ERROR")
-                error2_item.setTextAlignment(Qt.AlignCenter)
-                error2_item.setFont(self.font)
-                self.statistic_table.setItem(3, 0, error2_item)
-
-                error3_item = QTableWidgetItem("FAILURE")
-                error3_item.setTextAlignment(Qt.AlignCenter)
-                error3_item.setFont(self.font)
-                self.statistic_table.setItem(4, 0, error3_item)
-                self.textBox.clear()
-
-                self.count = 0
-                self.Controller.sendCommand("Idle")
-                self.command = ""
-                self.wait = False
+                    QMessageBox.about(self, "Dừng Khẩn Cấp", "Hệ thống dừng bởi lệnh người dùng!")
+                    
+                    # Gửi tín hiệu xong việc
+                    self.wait = False
+                    self.Controller.sendSignal(0, self.wait)
 
     # Init Camera
     def setup_camera(self):
@@ -617,6 +640,7 @@ class App(QMainWindow):
     def request(self):
         if self.Controller.querySignal():
             self.command = self.Controller.queryCommand()
+            self.Controller.sendSignal(1, False)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

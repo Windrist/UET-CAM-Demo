@@ -49,11 +49,11 @@ class PLC(object):
         while again:
             try:
                 plc.connect(self.IP, self.rack, self.slot)
-                data = plc.db_read(self.DBNumber, self.dataStart, self.dataSize)
+                data = plc.db_read(self.DBNumber, 804, 1)
                 again = False
-                return snap7.util.get_bool(data, 0, 0)
+                return snap7.util.get_bool(data, 0, 1)
             except Exception as e:
-                print("Cannot Get Command! Error!")
+                print("Cannot Get Signal! Error!")
             finally:
                 if plc.get_connected():
                     plc.disconnect()
@@ -96,37 +96,37 @@ class PLC(object):
             finally:
                 if plc.get_connected():
                     plc.disconnect()
-    
-    def sendCount(self, count):
+
+    def sendTotal(self, total):
         plc = snap7.client.Client()
         again = True
         while again:
             try:
                 plc.connect(self.IP, self.rack, self.slot)
-                data = plc.db_read(self.DBNumber, 262, 1)
-                snap7.util.set_int(data, 0, count)
-                plc.db_write(self.DBNumber, 262, data)
+                data = plc.db_read(self.DBNumber, 806, 1)
+                snap7.util.set_int(data, 0, total)
+                plc.db_write(self.DBNumber, 806, data)
                 # print("Count Write Successfully!")
                 again = False
             except Exception as e:
-                print("Cannot Send Data! Error!")
+                print("Cannot Send Total! Error!")
             finally:
                 if plc.get_connected():
                     plc.disconnect()
     
-    def sendSignal(self, signal):
+    def sendSignal(self, coord, signal):
         plc = snap7.client.Client()
         again = True
         while again:
             try:
                 plc.connect(self.IP, self.rack, self.slot)
-                data = plc.db_read(self.DBNumber, 262, 1)
-                snap7.util.set_bool(data, 0, 0, signal)
-                plc.db_write(self.DBNumber, 262, data)
+                data = plc.db_read(self.DBNumber, 804, 1)
+                snap7.util.set_bool(data, 0, coord, signal)
+                plc.db_write(self.DBNumber, 804, data)
                 # print("Count Write Successfully!")
                 again = False
             except Exception as e:
-                print("Cannot Send Data! Error!")
+                print("Cannot Send Signal! Error!")
             finally:
                 if plc.get_connected():
                     plc.disconnect()
