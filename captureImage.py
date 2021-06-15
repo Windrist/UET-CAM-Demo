@@ -5,8 +5,8 @@ if __name__ == "__main__":
     # Camera configuration
     cap = cv2.VideoCapture(0)
     count = 0
-    cap.set(3, 1920)
-    cap.set(4, 1080)
+    cap.set(3, 1280)
+    cap.set(4, 720)
     
     while True:
         ret, image = cap.read()
